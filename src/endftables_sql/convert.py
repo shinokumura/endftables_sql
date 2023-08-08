@@ -12,30 +12,10 @@ import os
 import re
 import json
 
-from models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_FY_Data
-from settings import session, engine, MT_PATH_JSON, LIB_LIST, LIB_PATH, ELEMS
+from .models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_FY_Data
+from .config import session, engine, MT_PATH_JSON, LIB_LIST, LIB_PATH
+from .submodules.utilities.elem import ELEMS, ztoelem
 
-
-def ztoelem(z):
-    if z == 0:
-        elem_name = "n"
-    else:
-        try:
-            z = z - 1
-            elem_name = ELEMS[z]
-        except ValueError:
-            elem_name = ""
-    return elem_name
-
-
-def elemtoz_nz(elem):
-    try:
-        z = ELEMS.index(elem)
-        z = z + 1
-        z = str(z)
-    except ValueError:
-        z = ""
-    return z
 
 
 def show_reaction():
@@ -77,7 +57,6 @@ def check(p, nuclide, lib, type, mt, residual):
             Endf_Reactions.type == type,
             Endf_Reactions.mt == mt,
             Endf_Reactions.residual == residual,
-
         )
         .all()
     )
@@ -115,7 +94,9 @@ def read_libs():
                         path = os.path.join(LIB_PATH, p, nuclide, lib, "tables", type)
 
                     if type == "fy":
-                        path = os.path.join(LIB_PATH, "FY", p, nuclide, lib, "tables", type.upper())
+                        path = os.path.join(
+                            LIB_PATH, "FY", p, nuclide, lib, "tables", type.upper()
+                        )
 
                     if os.path.exists(path):
                         files = [
@@ -123,7 +104,15 @@ def read_libs():
                             for f in os.listdir(path)
                             if os.path.isfile(os.path.join(path, f))
                             and not any(
-                                w in f for w in ("sacs", "G1102", ".DS_Store", "MF", ".list")
+                                w in f
+                                for w in (
+                                    "sacs",
+                                    "G1102",
+                                    ".DS_Store",
+                                    "MF",
+                                    ".list",
+                                    "YA",
+                                )
                             )
                         ]
 
@@ -139,28 +128,28 @@ def read_libs():
                             if name[2].endswith("m") or name[2].endswith("g"):
                                 # In case if the file is for the production of metastable or ground explicitly given
                                 continue
+
                             else:
                                 mt = name_sp
                             residual = None
 
                         if type == "residual":
                             if len(name[2]) >= 8:
-                                charge = ztoelem(int(name[2][2:5]))
+                                elem = ztoelem(int(name[2][2:5]))
                                 mass = str(int(name[2][5:8]))
-                                residual = charge + mass
+                                residual = elem + mass
                             if len(name[2]) == 9:
                                 iso = str(name[2][-1])
-                                residual = charge + mass + iso
-                                
+                                residual = elem + mass + iso
+
                             mt = None
-                        
+
                         if type == "fy":
                             mt = name_sp
                             residual = None
 
                         if check(p, nuclide, lib, type, mt, residual) > 0:
                             continue
-
 
                         reaction = Endf_Reactions()
                         reaction.evaluation = lib
@@ -173,7 +162,7 @@ def read_libs():
                             else None
                         )
                         reaction.residual = residual
-                        reaction.mf = 3 if type=="xs" else 8 if type=="fy" else None
+                        reaction.mf = 3 if type == "xs" else 8 if type == "fy" else None
                         reaction.mt = str(int(mt)) if mt else None
 
                         session.add(reaction)
@@ -182,20 +171,33 @@ def read_libs():
                         session.commit()
                         session.close()
 
-
                         connection = engine.connect()
                         if type == "xs":
                             lib_df = create_libdf(file, reaction_id)
-                            lib_df.to_sql("endf_xs_data", connection, index=False, if_exists="append")
+                            lib_df.to_sql(
+                                "endf_xs_data",
+                                connection,
+                                index=False,
+                                if_exists="append",
+                            )
 
                         if type == "residual":
                             lib_df = create_libdf(file, reaction_id)
-                            lib_df.to_sql("endf_residual_data", connection, index=False, if_exists="append")
+                            lib_df.to_sql(
+                                "endf_residual_data",
+                                connection,
+                                index=False,
+                                if_exists="append",
+                            )
 
                         if type == "fy":
                             lib_df = create_libdf_fy(file, reaction_id)
-                            lib_df.to_sql("endf_fy_data", connection, index=False, if_exists="append")
-
+                            lib_df.to_sql(
+                                "endf_fy_data",
+                                connection,
+                                index=False,
+                                if_exists="append",
+                            )
 
     return lib_df
 
@@ -211,13 +213,19 @@ def create_libdf(libfile, reaction_id):
             header=None,
             usecols=[0, 1, 2, 3],
             comment="#",
-            names=["en_inc", "data", "xslow", "xsupp"], # xslow/xsupp are only in tendl.2021, data in mb and en in MeV
+            names=[
+                "en_inc",
+                "data",
+                "xslow",
+                "xsupp",
+            ],  # xslow/xsupp are only in tendl.2021, data in mb and en in MeV
         )
-        lib_df["data"] *= 1e-3
-        if len(lib_df[lib_df['xslow'].notnull().all(1)]) == 0:
+        if len(lib_df[lib_df["xslow"].notnull().all(1)]) == 0:
             lib_df["xslow"] *= 1e-3
-        if len(lib_df[lib_df['xsupp'].notnull().all(1)]) == 0:
+
+        if len(lib_df[lib_df["xsupp"].notnull().all(1)]) == 0:
             lib_df["xsupp"] *= 1e-3
+
     except:
         lib_df = pd.read_csv(
             libfile,
@@ -228,8 +236,9 @@ def create_libdf(libfile, reaction_id):
             comment="#",
             names=["en_inc", "data"],
         )
-        lib_df["data"] *= 1e-3
 
+    ## Because Exfortables stores the data in mb
+    lib_df["data"] *= 1e-3
 
     lib_df["reaction_id"] = reaction_id
 
@@ -244,11 +253,10 @@ def create_libdf(libfile, reaction_id):
 
 def create_libdf_fy(libfile, reaction_id):
     with open(libfile, "r") as f:
-        en_inc = float ( f.readline()[15:29].strip() )
+        en_inc = float(f.readline()[15:29].strip())
 
     dfs = []
     lib_df = pd.DataFrame()
-
 
     lib_df = pd.read_csv(
         libfile,
@@ -257,16 +265,14 @@ def create_libdf_fy(libfile, reaction_id):
         header=None,
         usecols=[0, 1, 2, 3, 4],
         comment="#",
-        names=["mass", "charge", "isomeric", "data", "ddata"], # only in tendl.2021
+        names=["charge", "mass", "isomeric", "data", "ddata"],  # only in tendl.2021
     )
-    
+
     lib_df["en_inc"] = en_inc
     lib_df["reaction_id"] = reaction_id
-    dfs.append(lib_df)
 
-    if dfs:
-        lib_df = pd.concat(dfs, ignore_index=True)
-        lib_df["en_inc"] *= 1e-3
+    lib_df = pd.concat(dfs, ignore_index=True)
+    # lib_df["en_inc"] *= 1e-3
 
     lib_df = lib_df.reset_index()
     lib_df = lib_df.drop("index", axis=1)
@@ -274,21 +280,17 @@ def create_libdf_fy(libfile, reaction_id):
     return lib_df
 
 
-
 def drop_tables():
-    from settings import engine
-    from models import metadata
+    from src.endftables_sql.config import engine
+    from src.endftables_sql.models import metadata
 
     for tbl in reversed(metadata.sorted_tables):
         engine.execute(tbl.delete())
 
 
-
-
 if __name__ == "__main__":
-
+    # read_libs()
     try:
         read_libs()
     except:
         pass
-

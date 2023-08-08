@@ -1,0 +1,3 @@
+[submodule "submodules"]
+	path = src/endftables_sql/submodules
+	url = https://github.com/shinokumura/exparser-submodule.git

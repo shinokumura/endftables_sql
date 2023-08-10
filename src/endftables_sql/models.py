@@ -1,5 +1,6 @@
 import sqlalchemy as db
 from sqlalchemy.ext.declarative import declarative_base
+from .config import engine
 
 Base = declarative_base()
 metadata = db.MetaData()
@@ -16,6 +17,7 @@ class Endf_Reactions(Base):
     projectile = db.Column(db.String)
     process = db.Column(db.String, index=True)
     residual = db.Column(db.String, index=True)
+    points = db.Column(db.Integer)
     mf = db.Column(db.Integer)
     mt = db.Column(db.Integer, index=True)
 
@@ -51,6 +53,7 @@ class Endf_FY_Data(Base):
     data = db.Column(db.Float)
     ddata = db.Column(db.Float)
 
+Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
     from src.endftables_sql.config import engine

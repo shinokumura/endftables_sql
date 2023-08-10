@@ -11,6 +11,10 @@ import pandas as pd
 import os
 import re
 import json
+import logging
+
+FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
+logging.basicConfig(filename="processed.log", level=logging.DEBUG, filemode="w")
 
 from .models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_FY_Data
 from .config import session, engine, MT_PATH_JSON, LIB_LIST, LIB_PATH
@@ -20,7 +24,7 @@ from .submodules.utilities.elem import ELEMS, ztoelem
 
 def show_reaction():
     connection = engine.connect()
-    data = session().query(Endf_Reactions)
+    data = session.query(Endf_Reactions)
 
     df = pd.read_sql(
         sql=data.statement,
@@ -34,7 +38,7 @@ def show_reaction():
 
 def show_data():
     connection = engine.connect()
-    data = session().query(Endf_XS_Data)
+    data = session.query(Endf_XS_Data)
 
     df = pd.read_sql(
         sql=data.statement,
@@ -48,7 +52,7 @@ def show_data():
 
 def check(p, nuclide, lib, type, mt, residual):
     reac = (
-        session()
+        session
         .query(Endf_Reactions)
         .filter(
             Endf_Reactions.projectile == p,
@@ -151,6 +155,7 @@ def read_libs():
                         if check(p, nuclide, lib, type, mt, residual) > 0:
                             continue
 
+
                         reaction = Endf_Reactions()
                         reaction.evaluation = lib
                         reaction.type = type
@@ -164,13 +169,10 @@ def read_libs():
                         reaction.residual = residual
                         reaction.mf = 3 if type == "xs" else 8 if type == "fy" else None
                         reaction.mt = str(int(mt)) if mt else None
-
-                        session.add(reaction)
-                        session.flush()
                         reaction_id = reaction.reaction_id
-                        session.commit()
-                        session.close()
 
+
+                        points = 0
                         connection = engine.connect()
                         if type == "xs":
                             lib_df = create_libdf(file, reaction_id)
@@ -190,6 +192,7 @@ def read_libs():
                                 if_exists="append",
                             )
 
+
                         if type == "fy":
                             lib_df = create_libdf_fy(file, reaction_id)
                             lib_df.to_sql(
@@ -198,6 +201,16 @@ def read_libs():
                                 index=False,
                                 if_exists="append",
                             )
+
+                        points = len(lib_df.index)
+                        reaction.points = points
+
+                        session.add(reaction)
+                        session.flush()
+                        
+                        session.commit()
+                        session.close()
+
 
     return lib_df
 

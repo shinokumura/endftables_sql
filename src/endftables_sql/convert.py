@@ -75,7 +75,7 @@ def read_mt_json():
 
 
 def read_libs():
-    projectiles = ["n", "p", "t", "d", "g", "h", "a", "0"]
+    projectiles = ["n", "p"] #, "p", "t", "d", "g", "h", "a", "0"]
     mt_dict = read_mt_json()
 
     for p in projectiles:
@@ -88,19 +88,20 @@ def read_libs():
         # print(nuclides)
 
         for nuclide in nuclides:
-            print(p, nuclide)
+            # print(p, nuclide)
 
             for lib in LIB_LIST:
-                for type in ["xs", "residual", "fy"]:
+                for type in ["xs", "fy", "residual", "angle"]:
                     files = []
-
-                    if type != "fy":
-                        path = os.path.join(LIB_PATH, p, nuclide, lib, "tables", type)
 
                     if type == "fy":
                         path = os.path.join(
                             LIB_PATH, "FY", p, nuclide, lib, "tables", type.upper()
                         )
+
+                    else:
+                        path = os.path.join(LIB_PATH, p, nuclide, lib, "tables", type)
+
 
                     if os.path.exists(path):
                         files = [
@@ -122,22 +123,33 @@ def read_libs():
 
                     if not files:
                         continue
+                    print(p, nuclide, type)
 
                     for file in files:
-                        # print(p, nuclide, lib, type, file)
+                        lib_df = pd.DataFrame()
+
+                        mt = None
+                        residual = None
+                        iso = None
+
                         name = re.split("-|\.", os.path.basename(file))
-                        name_sp = re.sub(r"\D", "", name[2])
+                        ## xs:       ['n', 'Ac222m', 'MT018', 'tendl', '2021', 'txt']
+                        ##           ['n', 'Ac222m', 'MT078', 'tendl', '2021', 'txt']
+                        ##           ['n', 'Ac222m', 'MT062', 'tendl', '2021', 'txt'] 
+                        ## residual: ['n', 'Ac222m', 'rp087204n', 'tendl', '2021', 'txt']
+                        ## angle:    ['n', 'Ac222', 'MT056', 'Eang200', '000', 'tendl', '2021', 'txt']
 
                         if type == "xs":
-                            if name[2].endswith("m") or name[2].endswith("g"):
-                                # In case if the file is for the production of metastable or ground explicitly given
-                                continue
+                            # if name[2].endswith("m") or name[2].endswith("g"):
+                            #     # In case if the file is for the production of metastable or ground explicitly given
+                            #     continue
 
-                            else:
-                                mt = name_sp
+                            # else:
+                            mt = re.sub(r"\D", "", name[2])
                             residual = None
 
-                        if type == "residual":
+
+                        elif type == "residual":
                             if len(name[2]) >= 8:
                                 elem = ztoelem(int(name[2][2:5]))
                                 mass = str(int(name[2][5:8]))
@@ -148,9 +160,16 @@ def read_libs():
 
                             mt = None
 
-                        if type == "fy":
-                            mt = name_sp
+
+                        elif type == "fy":
+                            mt = re.sub(r"\D", "", name[2])
                             residual = None
+
+
+                        elif type == "angle":
+                            mt = re.sub(r"\D", "", name[2])
+                            residual = None
+
 
                         if check(p, nuclide, lib, type, mt, residual) > 0:
                             continue
@@ -164,16 +183,19 @@ def read_libs():
                         reaction.process = (
                             mt_dict[str(int(mt))]["sf3"]
                             if mt and mt_dict.get(str(int(mt)))
+                            else "X" if type == "residual"
                             else None
                         )
+                        
                         reaction.residual = residual
-                        reaction.mf = 3 if type == "xs" else 8 if type == "fy" else None
+                        reaction.mf = 3 if type == "xs" else 8 if type == "fy" else 4 if type == "angle" else 10 if type == "residual" else None
                         reaction.mt = str(int(mt)) if mt else None
+                        session.add(reaction)
+                        session.commit()
+
                         reaction_id = reaction.reaction_id
-
-
-                        points = 0
                         connection = engine.connect()
+                        
                         if type == "xs":
                             lib_df = create_libdf(file, reaction_id)
                             lib_df.to_sql(
@@ -183,7 +205,17 @@ def read_libs():
                                 if_exists="append",
                             )
 
-                        if type == "residual":
+                        elif type == "residual" and p == "n":
+                            lib_df = create_libdf(file, reaction_id)
+                            lib_df.to_sql(
+                                "endf_n_residual_data",
+                                connection,
+                                index=False,
+                                if_exists="append",
+                            )
+
+
+                        elif type == "residual" and p != "n":
                             lib_df = create_libdf(file, reaction_id)
                             lib_df.to_sql(
                                 "endf_residual_data",
@@ -192,8 +224,7 @@ def read_libs():
                                 if_exists="append",
                             )
 
-
-                        if type == "fy":
+                        elif type == "fy":
                             lib_df = create_libdf_fy(file, reaction_id)
                             lib_df.to_sql(
                                 "endf_fy_data",
@@ -202,12 +233,19 @@ def read_libs():
                                 if_exists="append",
                             )
 
-                        points = len(lib_df.index)
-                        reaction.points = points
+                        elif type == "angle":
+                            lib_df = create_libdf_angle(file, reaction_id)
+                            lib_df.to_sql(
+                                "endf_angle_data",
+                                connection,
+                                index=False,
+                                if_exists="append",
+                            )
 
-                        session.add(reaction)
-                        session.flush()
-                        
+                        else:
+                            continue
+
+                        session.query(Endf_Reactions).filter(Endf_Reactions.reaction_id == reaction_id).update({"points" : len(lib_df.index)})
                         session.commit()
                         session.close()
 
@@ -216,8 +254,6 @@ def read_libs():
 
 
 def create_libdf(libfile, reaction_id):
-    lib_df = pd.DataFrame()
-
     try:
         lib_df = pd.read_csv(
             libfile,
@@ -233,11 +269,11 @@ def create_libdf(libfile, reaction_id):
                 "xsupp",
             ],  # xslow/xsupp are only in tendl.2021, data in mb and en in MeV
         )
-        if len(lib_df[lib_df["xslow"].notnull().all(1)]) == 0:
-            lib_df["xslow"] *= 1e-3
+        # if len(lib_df[lib_df["xslow"].notnull().all(1)]) == 0:
+        lib_df["xslow"] *= 1e-3
 
-        if len(lib_df[lib_df["xsupp"].notnull().all(1)]) == 0:
-            lib_df["xsupp"] *= 1e-3
+        # if len(lib_df[lib_df["xsupp"].notnull().all(1)]) == 0:
+        lib_df["xsupp"] *= 1e-3
 
     except:
         lib_df = pd.read_csv(
@@ -252,7 +288,6 @@ def create_libdf(libfile, reaction_id):
 
     ## Because Exfortables stores the data in mb
     lib_df["data"] *= 1e-3
-
     lib_df["reaction_id"] = reaction_id
 
     if lib_df["en_inc"].sum() == 0:
@@ -266,10 +301,8 @@ def create_libdf(libfile, reaction_id):
 
 def create_libdf_fy(libfile, reaction_id):
     with open(libfile, "r") as f:
-        en_inc = float(f.readline()[15:29].strip())
-
-    dfs = []
-    lib_df = pd.DataFrame()
+        en_inc = float(f.readlines()[16][29:41].strip())
+        print(en_inc)
 
     lib_df = pd.read_csv(
         libfile,
@@ -284,13 +317,38 @@ def create_libdf_fy(libfile, reaction_id):
     lib_df["en_inc"] = en_inc
     lib_df["reaction_id"] = reaction_id
 
-    lib_df = pd.concat(dfs, ignore_index=True)
-    # lib_df["en_inc"] *= 1e-3
+    lib_df = lib_df.reset_index()
+    lib_df = lib_df.drop("index", axis=1)
+
+    pd.options.display.float_format = '{:12.5e}'.format
+    print(lib_df)
+    return lib_df
+
+
+
+def create_libdf_angle(libfile, reaction_id):
+    with open(libfile, "r") as f:
+        en_inc = float(f.readlines()[2][13:25].strip())
+
+    lib_df = pd.read_csv(
+        libfile,
+        sep="\s+",
+        index_col=None,
+        header=None,
+        usecols=[0, 1],
+        comment="#",
+        names=["angle", "data"],  # only in tendl.2021
+    )
+
+    lib_df["en_inc"] = en_inc
+    lib_df["reaction_id"] = reaction_id
 
     lib_df = lib_df.reset_index()
     lib_df = lib_df.drop("index", axis=1)
 
     return lib_df
+
+
 
 
 def drop_tables():
@@ -302,8 +360,8 @@ def drop_tables():
 
 
 if __name__ == "__main__":
-    # read_libs()
-    try:
-        read_libs()
-    except:
-        pass
+    read_libs()
+    # try:
+    #     read_libs()
+    # except:
+    #     pass

@@ -11,11 +11,12 @@ session = Session()
 
 MT_PATH_JSON = "/Users/okumuras/Dropbox/Development/exforparser/src/exforparser/tabulated/mt.json"
 # LIB_PATH = "/Users/okumuras/Documents/nucleardata/libraries.plot/"
-LIB_PATH = "/Users/okumuras/Documents/nucleardata/libraries.plot/"
+LIB_PATH = "/Users/okumuras/Documents/nucleardata/libraries/libraries.all/"
 
 LIB_LIST = [
     "tendl.2021",
     "endfb8.0",
+    "eaf.2010", # European Activation File
     "jeff3.3",
     "jendl5.0",
     "iaea.2019",

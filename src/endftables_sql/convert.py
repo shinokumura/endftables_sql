@@ -30,7 +30,7 @@ def show_reaction():
         sql=data.statement,
         con=connection,
     )
-    print(df)
+    # print(df)
 
     # for d in data:
     #     print(d.reaction_id, d.evaluation, d.target, d.projectile, d.process, d.mf, d.mt)
@@ -44,7 +44,7 @@ def show_data():
         sql=data.statement,
         con=connection,
     )
-    print(df)
+    # print(df)
 
     # for d in data:
     #     print( d.id, d.reaction_id, d.en_inc, d.data, d.ddata_1, d.ddata_2)
@@ -75,7 +75,7 @@ def read_mt_json():
 
 
 def read_libs():
-    projectiles = ["n", "p"] #, "p", "t", "d", "g", "h", "a", "0"]
+    projectiles = ["h", "a", "0"]
     mt_dict = read_mt_json()
 
     for p in projectiles:

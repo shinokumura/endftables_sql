@@ -77,7 +77,7 @@ class Endf_ANGLE_Data(Base):
 
 # Base.metadata.create_all(bind=engine)
 
-# if __name__ == "__main__":
-#     from src.endftables_sql.config import engine
+if __name__ == "__main__":
+    from src.endftables_sql.config import engine
 
-#     Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)

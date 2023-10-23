@@ -12,11 +12,16 @@ import os
 import re
 import json
 import logging
+import sys
+
+if len(sys.argv) > 1:
+    projectiles = list(sys.argv[1])
+
 
 FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 logging.basicConfig(filename="processed.log", level=logging.DEBUG, filemode="w")
 
-from .models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_FY_Data
+from .models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_N_Residual_Data, Endf_FY_Data, Endf_ANGLE_Data
 from .config import session, engine, MT_PATH_JSON, LIB_LIST, LIB_PATH
 from .submodules.utilities.elem import ELEMS, ztoelem
 
@@ -65,7 +70,78 @@ def check(p, nuclide, lib, type, mt, residual):
         .all()
     )
     # print(len(reac))
-    return len(reac)
+    # print(reac)
+
+    if len(reac) == 0:
+        return len(reac)
+
+    else:
+        ## check the existence of data in the datatable
+
+        for r in reac:
+            # print(r.reaction_id, r.evaluation, r.target, r.projectile, r.process, r.residual, r.mt)
+
+            if type == "fy":
+                data = (
+                    session
+                    .query(Endf_FY_Data)
+                    .filter(
+                        Endf_FY_Data.reaction_id == r.reaction_id,
+                    )
+                    .all()
+                )
+
+            elif type == "xs":
+                data = (
+                    session
+                    .query(Endf_XS_Data)
+                    .filter(
+                        Endf_XS_Data.reaction_id == r.reaction_id,
+                    )
+                    .all()
+                )
+
+            elif type == "angle":
+                data = (
+                    session
+                    .query(Endf_ANGLE_Data)
+                    .filter(
+                        Endf_ANGLE_Data.reaction_id == r.reaction_id,
+                    )
+                    .all()
+                )
+
+            elif type == "residual" and r.projectile == "n":
+                data = (
+                    session
+                    .query(Endf_N_Residual_Data)
+                    .filter(
+                        Endf_N_Residual_Data.reaction_id == r.reaction_id,
+                    )
+                    .all()
+                )
+
+            elif type == "residual" and r.projectile != "n":
+                data = (
+                    session
+                    .query(Endf_Residual_Data)
+                    .filter(
+                        Endf_Residual_Data.reaction_id == r.reaction_id,
+                    )
+                    .all()
+                )
+
+
+            if len(data) == 0:
+                print("no data")
+                return -1
+
+            else:
+                return len(data)
+        
+        
+
+    
 
 
 def read_mt_json():
@@ -74,8 +150,10 @@ def read_mt_json():
             return json.load(map_file)
 
 
-def read_libs():
-    projectiles = ["h", "a", "0"]
+def read_libs(projectiles=None):
+    if not projectiles:
+        projectiles = ["n"] #, "p", "g", "h", "t", "d", "a", "0"]
+
     mt_dict = read_mt_json()
 
     for p in projectiles:
@@ -86,9 +164,15 @@ def read_libs():
         ]
         nuclides = sorted(nuclides)
         # print(nuclides)
-
+        processed = True
         for nuclide in nuclides:
             # print(p, nuclide)
+
+            if nuclide == "La119":
+                processed = False
+
+            if processed:
+                continue
 
             for lib in LIB_LIST:
                 for type in ["xs", "fy", "residual", "angle"]:
@@ -123,7 +207,8 @@ def read_libs():
 
                     if not files:
                         continue
-                    print(p, nuclide, type)
+
+                    print("Processing: ", p, nuclide, type)
 
                     for file in files:
                         lib_df = pd.DataFrame()
@@ -152,11 +237,11 @@ def read_libs():
                         elif type == "residual":
                             if len(name[2]) >= 8:
                                 elem = ztoelem(int(name[2][2:5]))
-                                mass = str(int(name[2][5:8]))
+                                mass = str(int(name[2][5:8])).zfill(3)
                                 residual = elem + mass
                             if len(name[2]) == 9:
                                 iso = str(name[2][-1])
-                                residual = elem + mass + iso
+                                residual = elem + mass.zfill(3) + iso
 
                             mt = None
 
@@ -170,10 +255,13 @@ def read_libs():
                             mt = re.sub(r"\D", "", name[2])
                             residual = None
 
+                        if check(p, nuclide, lib, type, mt, residual) == -1:
+                            pass
 
-                        if check(p, nuclide, lib, type, mt, residual) > 0:
+                        elif check(p, nuclide, lib, type, mt, residual) > 0:
                             continue
 
+                        ## process
 
                         reaction = Endf_Reactions()
                         reaction.evaluation = lib
@@ -181,7 +269,11 @@ def read_libs():
                         reaction.target = nuclide
                         reaction.projectile = p
                         reaction.process = (
-                            mt_dict[str(int(mt))]["sf3"]
+                            "INL"
+                            if mt and mt == "004" and p == "n"
+                            else "N"
+                            if  mt and mt == "004" and p != "n"
+                            else mt_dict[str(int(mt))]["sf3"]
                             if mt and mt_dict.get(str(int(mt)))
                             else "X" if type == "residual"
                             else None
@@ -253,6 +345,8 @@ def read_libs():
     return lib_df
 
 
+
+
 def create_libdf(libfile, reaction_id):
     try:
         lib_df = pd.read_csv(
@@ -297,6 +391,9 @@ def create_libdf(libfile, reaction_id):
     lib_df = lib_df.drop("index", axis=1)
 
     return lib_df
+
+
+
 
 
 def create_libdf_fy(libfile, reaction_id):
@@ -360,7 +457,7 @@ def drop_tables():
 
 
 if __name__ == "__main__":
-    read_libs()
+    read_libs(projectiles)
     # try:
     #     read_libs()
     # except:

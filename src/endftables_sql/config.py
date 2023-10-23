@@ -4,15 +4,17 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 """ SQL database """
 
 engine = db.create_engine(
-    # "sqlite:////Users/sin/Desktop/endftables_tmp.sqlite"
+    # "sqlite:////Users/okumuras/Desktop/endftables.sqlite"
     "sqlite:////Users/okumuras/Documents/nucleardata/EXFOR/endftables.sqlite"
 )  # , echo=True)
 Session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 session = Session()
 
+# session_lib = sessionmaker(autocommit=False, autoflush=True, bind=engine)
+
 MT_PATH_JSON = "/Users/okumuras/Dropbox/Development/exforparser/src/exforparser/tabulated/mt.json"
-# LIB_PATH = "/Users/sin/Documents/nucleardata/libraries.plot/"
-LIB_PATH = "/Users/okumuras/Documents/nucleardata/libraries/libraries.all/"
+LIB_PATH = "/Users/okumuras/Documents/nucleardata/EXFOR/libraries.all/"
+
 
 LIB_LIST = [
     "tendl.2021",

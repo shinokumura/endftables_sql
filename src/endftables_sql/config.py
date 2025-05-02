@@ -1,29 +1,35 @@
-import sqlalchemy as db
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 """ SQL database """
-
-engine = db.create_engine(
-    # "sqlite:////Users/okumuras/Desktop/endftables.sqlite"
-    "sqlite:////Users/okumuras/Documents/nucleardata/EXFOR/endftables.sqlite"
-)  # , echo=True)
-Session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+engines = {
+    "endftables": create_engine("sqlite:////Users/okumuras/Documents/nucleardata/EXFOR/endftables.sqlite"),
+}
+Base = declarative_base()
+Session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engines["endftables"]))
 session = Session()
+connection = engines["endftables"].connect()
 
-# session_lib = sessionmaker(autocommit=False, autoflush=True, bind=engine)
+# conn = sqlite3.connect('sqlite:////Users/okumuras/Documents/nucleardata/EXFOR/endftables.sqlite')
 
-MT_PATH_JSON = "/Users/okumuras/Dropbox/Development/exforparser/src/exforparser/tabulated/mt.json"
-LIB_PATH = "/Users/okumuras/Documents/nucleardata/EXFOR/libraries.all/"
+
+# MT_PATH_JSON = "/Users/okumuras/Dropbox/Development/exforparser/src/exforparser/tabulated/mt.json"
+LIB_PATH = "/Users/okumuras/Documents/nucleardata/libraries.all/"
 
 
 LIB_LIST = [
-    "tendl.2021",
+    "tendl.2023",
+    # "tendl.2021",
     "endfb8.0",
     "eaf.2010", # European Activation File
     "jeff3.3",
     "jendl5.0",
-    "iaea.2019",
+    # "jendl4.0",
+    "iaea.2022",
+    # "iaea.2019",
     "cendl3.2",
     "irdff2.0",
     "iaea.pd",
+    "ibandl",
 ]

@@ -156,3 +156,4 @@ dmypy.json
 docker/
 _*
 *old*
+*.txt

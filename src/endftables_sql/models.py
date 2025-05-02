@@ -1,6 +1,6 @@
 import sqlalchemy as db
 from sqlalchemy.ext.declarative import declarative_base
-from .config import engine
+from endftables_sql.config import engines
 
 Base = declarative_base()
 metadata = db.MetaData()
@@ -17,6 +17,7 @@ class Endf_Reactions(Base):
     projectile = db.Column(db.String)
     process = db.Column(db.String, index=True)
     residual = db.Column(db.String, index=True)
+    # en_inc = db.Column(db.Float, index=True) # For FY and angular distribution
     points = db.Column(db.Integer)
     mf = db.Column(db.Integer)
     mt = db.Column(db.Integer, index=True)
@@ -65,19 +66,24 @@ class Endf_FY_Data(Base):
 
 
 
-class Endf_ANGLE_Data(Base):
+class Endf_Angle_Data(Base):
     __tablename__ = "endf_angle_data"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
     reaction_id = db.Column(db.Integer, index=True)
     en_inc = db.Column(db.Float, index=True)
+    energy = db.Column(db.Float, index=True)
     angle = db.Column(db.Float, index=True)
     data = db.Column(db.Float)
     ddata = db.Column(db.Float)
+    frame = db.Column(db.String)
 
 
-# Base.metadata.create_all(bind=engine)
+
+
+def create_all():
+    Base.metadata.create_all(bind=engines["endftables"])
+
 
 if __name__ == "__main__":
-    from src.endftables_sql.config import engine
+    create_all()
 
-    Base.metadata.create_all(bind=engine)

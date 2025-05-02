@@ -1,17 +1,12 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
-
 [project]
 name = "endftables_sql"
 authors = [
     {name = "Shin Okumura/IAEA-NDS", email = "s.okumura@iaea.org"},
 ]
 version = "1.0.0b"
-description = "Converter for ENDFTABLES into SQL"
+description = "Converter for ENDFTABLES into SQLite Database"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 keywords = ["ENDFTABLES", "Nuclear Data"]
 license = {file = "LICENSE"}
 classifiers = [
@@ -20,24 +15,19 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
 ]
-dynamic = ["dependencies"]
-
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
-
-[tool.setuptools.packages.find]
-where = ["src"]
+[project.scripts]
+endftables = "endftables_sql.main:cli"
 
 
 [tool.setuptools]
-include-package-data = true
+package-dir = {"" = "src"}
 
-
-[tool.setuptools.package-data]
-"submodules.utilities" = ["*.txt"]
-
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [project.urls]
 Homepage = "https://github.com/shinokumura/endftables_sql"

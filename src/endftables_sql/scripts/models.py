@@ -12,12 +12,12 @@ class Endf_Reactions(Base):
         db.Integer, primary_key=True, autoincrement=True, index=True
     )
     evaluation = db.Column(db.String, index=True)
-    type = db.Column(db.String, index=True)
+    obs_type = db.Column(db.String, index=True)
     target = db.Column(db.String, index=True)
     projectile = db.Column(db.String)
     process = db.Column(db.String, index=True)
     residual = db.Column(db.String, index=True)
-    # en_inc = db.Column(db.Float, index=True) # For FY and angular distribution
+    en_inc = db.Column(db.Float, index=True) # For FY and angular distribution
     points = db.Column(db.Integer)
     mf = db.Column(db.Integer)
     mt = db.Column(db.Integer, index=True)
@@ -71,7 +71,6 @@ class Endf_Angle_Data(Base):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
     reaction_id = db.Column(db.Integer, index=True)
     en_inc = db.Column(db.Float, index=True)
-    energy = db.Column(db.Float, index=True)
     angle = db.Column(db.Float, index=True)
     data = db.Column(db.Float)
     ddata = db.Column(db.Float)

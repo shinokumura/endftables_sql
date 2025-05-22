@@ -13,6 +13,10 @@ import re
 import logging
 import sys
 
+from endftables_sql.config import session, LIB_PATH
+from .models import Endf_Reactions, Endf_XS_Data
+from .convert import read_mt_json, create_libdf
+# connection = engine.connect()
 
 if len(sys.argv) > 1:
     type = list(sys.argv[1])
@@ -22,11 +26,7 @@ if len(sys.argv) > 1:
 FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 logging.basicConfig(filename="processed.log", level=logging.DEBUG, filemode="w")
 
-from .models import Endf_Reactions, Endf_XS_Data, Endf_Residual_Data, Endf_N_Residual_Data, Endf_FY_Data, Endf_ANGLE_Data
-from .config import session, connection, LIB_LIST, LIB_PATH
 
-from .convert import read_mt_json, create_libdf
-# connection = engine.connect()
 
 
 

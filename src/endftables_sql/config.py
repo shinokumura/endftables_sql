@@ -1,12 +1,33 @@
+import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
+
+BASE_DIR = Path(__file__).resolve().parent
+
+ENV = "dev"  # or "INT" or "PROD"
+
+
+if ENV == "dev":
+    DATA_DIR = "/Users/okumuras/Documents/nucleardata/EXFOR/"
+
+elif ENV == "int":
+    DATA_DIR = "/srv/data/dataexplorer_v2/"
+
+elif ENV == "prod":
+    DATA_DIR = "/nds/data/dataexplorer_v2/"
+
+
+ENDFTAB_DB = os.path.join(DATA_DIR, "endftables_.sqlite")
+
 """ SQL database """
 engines = {
-    "endftables": create_engine("sqlite:////Users/okumuras/Documents/nucleardata/EXFOR/endftables.sqlite"),
+    # "exfor": create_engine("sqlite:///" + EXFOR_DB),
+    "endftables": create_engine("sqlite:///" + ENDFTAB_DB),
 }
-Base = declarative_base()
+
 session_lib = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engines["endftables"]))
 
 BATCH_SIZE = 1000
@@ -32,3 +53,5 @@ LIB_LIST = [
     "iaea.pd",
     "ibandl",
 ]
+
+# obs_types = ["xs", "residual", "angle"]

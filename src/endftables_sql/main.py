@@ -41,8 +41,8 @@ def cli():
 
     if args.convert == "fy":
         projectile = args.convert
-        process_all(type="fy", projectile="n")
-        process_all(type="fy", projectile="0")
+        process_all(run_type="fy", projectile="n", nfl="A-Z")
+        process_all(run_type="fy", projectile="0", nfl="A-Z")
 
     if args.convert:
         projectile = args.convert
@@ -53,9 +53,9 @@ def cli():
 
             # with Pool(processes=4) as pool:
             #     r = pool.starmap(process_all, args)  # Parallel execution
-            process_all(type=None, projectile='n', nfl="A-Z")
+            process_all(run_type=None, projectile='n', nfl="A-Z")
 
         else:
-            process_all(type=None, projectile=projectile, nfl="A-Z")
+            process_all(run_type=None, projectile=projectile, nfl="A-Z")
 
 

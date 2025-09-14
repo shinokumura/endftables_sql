@@ -12,10 +12,15 @@
 import re
 
 # from .config import session_lib
-from endftables_sql.config import session_lib
+from endftables_sql.config import engines, session_lib, LIB_LIST
 from .models import Endf_Reactions
-from sqlalchemy import update
+from sqlalchemy import update, insert, Table, select, and_, or_
 from endftables_sql.submodules.utilities.reaction import mt_to_discretelevel
+from endftables_sql.scripts.convert import metadata, glob_files_from_liball, glob_nuclides_from_liball, extract_info_from_fn, check, process_one_file
+import logging
+logging.basicConfig(filename=f"check.log", level=logging.ERROR, filemode="w")
+
+FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 
 
 def maintenance_a():
@@ -56,5 +61,73 @@ def update_process():
         session_lib.commit()
     session_lib.close()
 
-    
-update_process()
+
+def check_omissions(run_type):
+    """
+    This is for Cd000 and Fe056 where the shell script run fail because of too many files.
+    """
+    projectiles = ["n"] #["a", "d", "g", "h", "p", "t", "n"]
+
+    run_type = None
+    nfl = "A-Z"
+
+    for projectile in projectiles:
+        reaction_list = []
+        obs_types, nuclides = glob_nuclides_from_liball(run_type, projectile, nfl)
+        # print(obs_types, nuclides)
+        for nuclide in nuclides:
+        # for nuclide in ["Fe056", "Cd000"]:
+            print(projectile, nuclide) 
+            for lib in LIB_LIST:
+                connection = engines["endftables"].connect()
+                endf_reactions = Table("endf_reactions", metadata, autoload_with=connection)   
+                for obs_type in obs_types:
+                    files = glob_files_from_liball(projectile, nuclide, lib, obs_type)
+
+                    if not files:
+                        continue
+
+                    for file in files:
+                        mt, residual, en_inc = extract_info_from_fn(file, obs_type)
+                        if mt:
+                            count = check(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual)
+
+                            if count == -1:
+                                print("not found:", projectile, nuclide, lib, obs_type, en_inc, mt, residual, file)
+                                logging.error(f"Not found in {projectile}, {nuclide}, {lib}, {obs_type}, {en_inc}, {mt}, {residual}\n{file}", exc_info=True)
+                            if count > 0:
+                                continue
+                        else:
+                            continue
+                connection.close()
+
+
+
+def add_unloaded_files():
+
+    """ unloaded.txt is the output of @check_omissions and the following one liner
+    $ sed "s/ERROR\:root\:Not found in //g" check.log | grep -v "NoneType" > a
+    n, Cd000, tendl.2023, xs, None, 051, None
+    n, Cd000, tendl.2023, xs, None, 044, None
+    n, Cd000, tendl.2023, xs, None, 204, None
+    n, Cd000, tendl.2023, xs, None, 028, None
+    n, Cd000, tendl.2023, xs, None, 032, None
+    n, Cd000, tendl.2023, xs, None, 203, None
+    n, Cd000, tendl.2023, xs, None, 202, None
+    n, Cd000, tendl.2023, xs, None, 033, None
+    """
+
+    with open("unloaded.log", "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    for i in range(0, len(lines), 2):
+        data_line = lines[i]
+        file_line = lines[i + 1] if i + 1 < len(lines) else None
+
+        projectile, nuclide, lib, obs_type, en_inc, mt, residual = [x.strip() if x != 'None' else None for x in data_line.split(",")]
+        # print(projectile, nuclide, lib, obs_type, en_inc, mt, residual)
+
+        process_one_file(projectile, nuclide, lib, obs_type, file_line)
+
+add_unloaded_files()
+

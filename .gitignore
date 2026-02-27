@@ -157,3 +157,8 @@ docker/
 _*
 *old*
 *.txt
+
+# settings
+config.py
+maintanance.py
+replace.py

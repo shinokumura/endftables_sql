@@ -1,14 +1,8 @@
-
-import os
 import argparse
-import logging
-logging.basicConfig(filename=f"process.log", level=logging.ERROR, filemode="w")
-from multiprocessing import Process, Pool
-
 from endftables_sql.scripts.models import create_all
 from endftables_sql.scripts.convert import process_all
 
-PARTICLES = ["a", "d", "g", "h", "n", "p", "t", "fy"]
+PARTICLES = ["a", "d", "g", "h",  "p", "t", "n", "fy"]
 
 
 def cli():
@@ -39,23 +33,20 @@ def cli():
     if args.init:
         create_all()
 
-    if args.convert == "fy":
+    if args.convert:
         projectile = args.convert
+
+    if args.convert == "fy":
         process_all(run_type="fy", projectile="n", nfl="A-Z")
         process_all(run_type="fy", projectile="0", nfl="A-Z")
 
-    if args.convert:
+    elif args.convert == "resonance":
         projectile = args.convert
-        
-        if projectile == "n":
-            # inp = ["A-D", "E-J", "K-O", "P-S", "T-Z"]  # Input list
-            # args = [("", "n", i) for i in inp]
-
-            # with Pool(processes=4) as pool:
-            #     r = pool.starmap(process_all, args)  # Parallel execution
-            process_all(run_type=None, projectile='n', nfl="A-Z")
-
-        else:
-            process_all(run_type=None, projectile=projectile, nfl="A-Z")
 
 
+    elif args.convert in ["n", "a", "d", "g", "h", "p", "t"]:
+        process_all(run_type=None, projectile=projectile, nfl="A-Z")
+
+
+if __name__ == "__main__":
+    cli()

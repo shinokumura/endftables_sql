@@ -12,17 +12,23 @@ import os
 import re
 import logging
 
-
-FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
-
-
 from endftables_sql.config import engines, session_lib, LIB_LIST, LIB_PATH, FPY_LIB_PATH
-from sqlalchemy import update, insert, Table, MetaData, select, and_, or_
-
+from endftables_sql.scripts.models_core import endf_reactions
+from sqlalchemy import update, insert, Table, MetaData, select, and_, or_, text, event
+from sqlalchemy.exc import IntegrityError
 
 from endftables_sql.submodules.utilities.elem import ztoelem
 from endftables_sql.submodules.utilities.reaction import mt_to_process
+
 metadata = MetaData()
+
+
+@event.listens_for(engines["endftables"], "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 def check(connection, endf_reactions, p, nuclide, lib, obs_type, en_inc, mt, residual):
 
@@ -46,29 +52,51 @@ def check(connection, endf_reactions, p, nuclide, lib, obs_type, en_inc, mt, res
 
 
 
+logger = logging.getLogger(__name__)
+def setup_logger(projectile, suffix=""):
+    log_filename = f"process_{projectile}{suffix}.log"
+    root_logger = logging.getLogger()
+    
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    file_handler = logging.FileHandler(log_filename, mode="a", encoding="utf-8", delay=False)
+    file_handler.setLevel(logging.INFO)
+    
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.WARNING) 
+
+    formatter = logging.Formatter("%(asctime)s — %(levelname)s — %(message)s")
+    file_handler.setFormatter(formatter)
+    stream_handler.setFormatter(formatter)
+
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(stream_handler)
+
+
 
 def insert_index(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual):
-    
+    v_en_inc = en_inc if en_inc is not None else 0.0
+    v_residual = residual if residual else ""
+    v_mt = int(mt) if mt is not None else 0
+
     react = {
         "evaluation": lib,
         "obs_type": obs_type,
         "target": nuclide,
         "projectile": projectile,
-        "en_inc":  en_inc,
+        "en_inc": v_en_inc,
         "process": mt_to_process(projectile, obs_type, mt),
-        "residual":  residual,
+        "residual": v_residual,
         "mf": 3 if obs_type == "xs" else 8 if obs_type == "fy" else 4 if obs_type == "angle" else 10 if obs_type == "residual" else None,
-        "mt":  str(int(mt)) if mt else None
+        "mt": v_mt
     }
-    stmt = insert(endf_reactions).values(react).returning(endf_reactions.c.reaction_id)
-    # result = connection.execute(stmt)
-    # # result.close()
-    # # connection.commit()
-    # reaction_id = result.scalar_one()
-    # print(reaction_id)
-    # connection.commit()
-    # connection.close()
-    return connection.execute(stmt).scalar_one()
+
+    result = connection.execute(insert(endf_reactions).values(react))
+    return result.lastrowid
+    # stmt = insert(endf_reactions).values(react).returning(endf_reactions.c.reaction_id)
+    # return connection.execute(stmt).scalar_one()
 
 
 def glob_nuclides_from_liball(run_type, projectile, nfl):
@@ -193,56 +221,66 @@ def extract_info_from_fn(file, obs_type):
     return mt, residual, en_inc
 
 
-# process_all(run_type="fy", projectile="n")
+
 
 def process_all(run_type, projectile, nfl):
-
+    suffix = f"_{nfl}" if projectile == "n" else ""
+    setup_logger(projectile, suffix)
+    
     obs_types, nuclides = glob_nuclides_from_liball(run_type, projectile, nfl)
 
+    with open("false_complete") as pf:
+        false_comp = {line.strip() for line in pf if line.strip()}
+
+    with open("partial_sucess") as pf:
+        partial_sucess = {line.strip() for line in pf if line.strip()}
+
+    need_to_process = false_comp - partial_sucess
+    print(need_to_process)
+
     for nuclide in nuclides:
-        connection = engines["endftables"].connect()
-        trans = connection.begin()
+        if nuclide not in need_to_process:
+            # logger.info(f"Already processed: {nuclide}")
+            # print(nuclide)
+            continue
+        processed_count = 0
+        print(nuclide)
         try:
-            endf_reactions = Table("endf_reactions", metadata, autoload_with=connection)
-
-            for lib in LIB_LIST:
-                for obs_type in obs_types:
-                    files = glob_files_from_liball(projectile, nuclide, lib, obs_type)
-                    if not files:
-                        continue
-
-                    for file in files:
-                        mt, residual, en_inc = extract_info_from_fn(file, obs_type)
-
-                        try:
-                            count = check(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual)
-                            if count == -1:
-                                # print("Processing: ", projectile, nuclide, lib, obs_type, en_inc, mt, residual )
-                                read_libs(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual, file)
-
-                            if count > 0:
-                                print(projectile, nuclide, lib, obs_type, en_inc, mt, residual, "exist")
+            with engines["endftables"].connect() as conn:
+                with conn.begin(): 
+                    conn.execute(text("BEGIN EXCLUSIVE TRANSACTION"))
+                    for lib in LIB_LIST:
+                        for obs_type in obs_types:
+                            files = glob_files_from_liball(projectile, nuclide, lib, obs_type)
+                            if not files:
                                 continue
 
-                        except KeyboardInterrupt:
-                            print("CTR + C")
-                            trans.rollback()
-                            connection.close()
-                            raise
-                    
-                        except Exception:
-                            logging.error(f"ERROR: at file: {file}", exc_info=True)
-                            trans.rollback() 
-                            trans = connection.begin()
+                            for file in files:
+                                mt, residual, en_inc = extract_info_from_fn(file, obs_type)
+                                
+                                safe_mt = int(mt) if mt is not None else 0
+                                safe_en_inc = float(en_inc) if en_inc is not None else 0.0
+                                safe_residual = str(residual) if residual is not None else ""
 
-            trans.commit()
+                                rid = insert_index(
+                                    conn, endf_reactions, projectile, nuclide, lib, 
+                                    obs_type, safe_en_inc, safe_mt, safe_residual
+                                )
 
-        except Exception:
-            trans.rollback()
-            logging.error(f"Fatal error at nuclide: {nuclide}", exc_info=True)
+                                if rid:
+                                    read_libs(conn, rid, projectile, obs_type, file)
+                                    processed_count += 1
 
-        finally:
-            connection.close()
+
+            if processed_count >= 0:
+                logger.info(f"Completed: {nuclide} ({processed_count} files)")
+
+        except Exception as e:
+
+            logger.error(f"Error in {nuclide}: {e}")
+            continue
+
+
 
 
 def process_one_file(projectile, nuclide, lib, obs_type, file):
@@ -255,7 +293,7 @@ def process_one_file(projectile, nuclide, lib, obs_type, file):
     try:
         connection = engines["endftables"].connect()
         trans = connection.begin()
-        endf_reactions = Table("endf_reactions", metadata, autoload_with=connection)
+        # endf_reactions = Table("endf_reactions", metadata, autoload_with=connection)
         
         count = check(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual)
         
@@ -287,75 +325,29 @@ def process_one_file(projectile, nuclide, lib, obs_type, file):
     
     return None
 
-
-def read_libs(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual, file):
-    lib_df = pd.DataFrame()
-
-    # endf_reactions = Table("endf_reactions", metadata, autoload_with=connection.engine)
-    reaction_id = insert_index(connection, endf_reactions, projectile, nuclide, lib, obs_type, en_inc, mt, residual)
-    
+def read_libs(connection, reaction_id, projectile, obs_type, file):
+    """
+    確定した reaction_id に対して、ファイルから読み込んだ数値データを紐付ける。
+    """
     if obs_type == "xs":
         lib_df = create_libdf(file, reaction_id)
-        lib_df.to_sql(
-            "endf_xs_data",
-            connection,
-            index=False,
-            if_exists="append",
-            method='multi' 
-        )
+        lib_df.to_sql("endf_xs_data", connection, index=False, if_exists="append", method='multi', chunksize=500)
 
-    elif obs_type == "residual" and projectile == "n":
+    elif obs_type == "residual":
         lib_df = create_libdf(file, reaction_id)
-        lib_df.to_sql(
-            "endf_n_residual_data",
-            connection,
-            index=False,
-            if_exists="append",
-            method='multi' 
-        )
-
-
-    elif obs_type == "residual" and projectile != "n":
-        lib_df = create_libdf(file, reaction_id)
-        lib_df.to_sql(
-            "endf_residual_data",
-            connection,
-            index=False,
-            if_exists="append",
-            method='multi' 
-        )
+        table = "endf_n_residual_data" if projectile == "n" else "endf_residual_data"
+        lib_df.to_sql(table, connection, index=False, if_exists="append", method='multi', chunksize=500)
 
     elif obs_type == "fy":
-        lib_df, en_inc = create_libdf_fy(file, reaction_id)
-        lib_df.to_sql(
-            "endf_fy_data",
-            connection,
-            index=False,
-            if_exists="append",
-            method='multi' 
-        )
+        lib_df, _ = create_libdf_fy(file, reaction_id)
+        lib_df.to_sql("endf_fy_data", connection, index=False, if_exists="append", method='multi', chunksize=500)
 
     elif obs_type == "angle":
-        lib_df, en_inc = create_libdf_angle(file, reaction_id)
-        lib_df.to_sql(
-            "endf_angle_data",
-            connection,
-            index=False,
-            if_exists="append",
-            method='multi' 
-        )
+        lib_df, _ = create_libdf_angle(file, reaction_id)
+        lib_df.to_sql("endf_angle_data", connection, index=False, if_exists="append", method='multi', chunksize=500)
 
-    else:
-        pass
-
-    stmt = (
-        update(endf_reactions).where(endf_reactions.c.reaction_id == reaction_id).values(points=len(lib_df.index))
-    )
+    stmt = update(endf_reactions).where(endf_reactions.c.reaction_id == reaction_id).values(points=len(lib_df.index))
     connection.execute(stmt)
-
-
-    return 
-
 
 
 
@@ -465,29 +457,6 @@ def create_libdf_angle(libfile, reaction_id):
 
 
 
-
-def show_reaction():
-    with engines["endftables"].connect() as connection:
-    # connection = engine.connect()
-        data = session_lib.query(Endf_Reactions)
-
-        df = pd.read_sql(
-            sql=data.statement,
-            con=connection,
-        )
-
-
-def show_data():
-    with engines["endftables"].connect() as connection:
-    # connection = engine.connect()
-        data = session_lib.query(Endf_XS_Data)
-
-        df = pd.read_sql(
-            sql=data.statement,
-            con=connection,
-        )
-
-    return df
 
 
 if __name__ == "__main__":

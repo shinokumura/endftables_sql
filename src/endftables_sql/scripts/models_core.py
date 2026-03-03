@@ -1,7 +1,4 @@
 import sqlalchemy as db
-from sqlalchemy import UniqueConstraint
-from endftables_sql.config import engines
-
 metadata = db.MetaData()
 
 endf_reactions = db.Table(
@@ -18,17 +15,6 @@ endf_reactions = db.Table(
     db.Column("points", db.Integer),
     db.Column("mf", db.Integer),
     db.Column("mt", db.Integer),
-
-    # UniqueConstraint(
-    #     "evaluation",
-    #     "obs_type",
-    #     "target",
-    #     "projectile",
-    #     "en_inc",
-    #     "mt",
-    #     "residual",
-    #     name="uq_endf_reaction"
-    # ),
 )
 
 endf_xs_data = db.Table(
@@ -90,9 +76,19 @@ endf_angle_data = db.Table(
 )
 
 
+# =========================
+# Engine-independent API
+# =========================
 
-def create_all():
-    metadata.create_all(bind=engines["endftables"])
+def create_all(engine):
+    """
+    Create all tables using provided engine.
+    """
+    metadata.create_all(bind=engine)
 
-if __name__ == "__main__":
-    create_all()
+
+def drop_all(engine):
+    """
+    Drop all tables using provided engine.
+    """
+    metadata.drop_all(bind=engine)

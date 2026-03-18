@@ -1,6 +1,7 @@
 import argparse
 from endftables_sql.scripts.models import create_all
 from endftables_sql.scripts.convert import process_all
+from endftables_sql.scripts.load_resonancetables import load_all_to_db, create_indexes
 
 PARTICLES = ["a", "d", "g", "h",  "p", "t", "n", "fy"]
 
@@ -25,6 +26,13 @@ def cli():
         help="Convert EDNFTABLES to SQLite Database",
     )
 
+    parser.add_argument(
+        "-r",
+        "--resonancetables",
+        help="Load resonancetables (MACS, thermal XS, resonance params) into DB",
+        action="store_true",
+    )
+
 
     args = parser.parse_args()
     print(args)
@@ -32,6 +40,10 @@ def cli():
 
     if args.init:
         create_all()
+
+    if args.resonancetables:
+        load_all_to_db()
+        create_indexes()
 
     if args.convert:
         projectile = args.convert

@@ -80,6 +80,28 @@ endf_angle_data = db.Table(
 # Engine-independent API
 # =========================
 
+resonancetable_data = db.Table(
+    "resonancetable_data",
+    metadata,
+    db.Column("id", db.Integer, primary_key=True, autoincrement=True),
+    db.Column("z", db.Integer),
+    db.Column("a", db.Integer),
+    db.Column("liso", db.Integer),
+    db.Column("nuclide", db.String),
+    db.Column("data_type", db.String),   # "macs", "thermal", "resonance_param"
+    db.Column("quantity", db.String),    # "ng", "D0", "S0", "el", "nf", etc.
+    db.Column("source", db.String),      # "Kadonis", "Mughabghab-2018", "selected", etc.
+    db.Column("value", db.Float),
+    db.Column("dvalue", db.Float),
+    db.Column("rel_dev_comp", db.Float),
+    db.Column("rel_dev_ndl", db.Float),
+    db.Column("rel_dev_exfor", db.Float),
+    db.Column("rel_dev_all", db.Float),
+    db.Column("n_exper", db.Integer),
+    db.Column("spectrum", db.String),    # "MXW" or None
+)
+
+
 def create_all(engine):
     """
     Create all tables using provided engine.

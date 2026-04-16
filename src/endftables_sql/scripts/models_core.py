@@ -6,6 +6,7 @@ endf_reactions = db.Table(
     metadata,
     db.Column("reaction_id", db.Integer, primary_key=True, autoincrement=True),
     db.Column("evaluation", db.String),
+    db.Column("year", db.Integer),
     db.Column("obs_type", db.String),
     db.Column("target", db.String),
     db.Column("projectile", db.String),
@@ -84,13 +85,7 @@ resonancetable_data = db.Table(
     "resonancetable_data",
     metadata,
     db.Column("id", db.Integer, primary_key=True, autoincrement=True),
-    db.Column("z", db.Integer),
-    db.Column("a", db.Integer),
-    db.Column("liso", db.Integer),
-    db.Column("nuclide", db.String),
-    db.Column("data_type", db.String),   # "macs", "thermal", "resonance_param"
-    db.Column("quantity", db.String),    # "ng", "D0", "S0", "el", "nf", etc.
-    db.Column("source", db.String),      # "Kadonis", "Mughabghab-2018", "selected", etc.
+    db.Column("reaction_id", db.Integer),
     db.Column("value", db.Float),
     db.Column("dvalue", db.Float),
     db.Column("rel_dev_comp", db.Float),

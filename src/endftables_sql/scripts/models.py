@@ -1,4 +1,4 @@
-src/endftables_sql/scripts/models.pyimport sqlalchemy as db
+import sqlalchemy as db
 from sqlalchemy.ext.declarative import declarative_base
 from endftables_sql.config import engines
 
@@ -82,13 +82,7 @@ class Endf_Angle_Data(Base):
 class ResonanceTable_Data(Base):
     __tablename__ = "resonancetable_data"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    z = db.Column(db.Integer)
-    a = db.Column(db.Integer)
-    liso = db.Column(db.Integer)
-    nuclide = db.Column(db.String)
-    data_type = db.Column(db.String)
-    quantity = db.Column(db.String)
-    source = db.Column(db.String)
+    reaction_id = db.Column(db.Integer)   # FK → endf_reactions (evaluation=source, obs_type=data_type/param, target=nuclide, process=channel)
     value = db.Column(db.Float)
     dvalue = db.Column(db.Float)
     rel_dev_comp = db.Column(db.Float)

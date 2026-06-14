@@ -359,7 +359,7 @@ def load_all_to_db(engine=None):
     data_df["obs_type"]  = data_df.apply(_row_obs_type,  axis=1)
     data_df["process"]   = data_df.apply(_row_process,   axis=1)
     data_df["residual"]  = data_df.apply(_row_residual,  axis=1)
-
+    print(data_df)
     # ------------------------------------------------------------------
     # All obs_types managed by this loader.
     # "If"/"Ig" listed for backward-compat DELETE; new rows use "integral".
@@ -398,7 +398,7 @@ def load_all_to_db(engine=None):
     idx_df["evaluation"] = idx_df["source"]
     idx_df["target"]     = idx_df["nuclide"]
     idx_df["projectile"] = "n"
-
+    print(idx_df)
     insert_cols = ["evaluation", "obs_type", "target", "projectile", "process", "residual", "year"]
     idx_df[insert_cols].to_sql(
         IDX_TABLE, con=engine, if_exists="append", index=False, chunksize=BATCH_SIZE

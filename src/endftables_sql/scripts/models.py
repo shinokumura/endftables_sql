@@ -77,6 +77,19 @@ class Endf_Angle_Data(Base):
     frame = db.Column(db.String)
 
 
+class Endf_DDX_Data(Base):
+    __tablename__ = "endf_ddx_data"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    reaction_id = db.Column(db.Integer)
+    en_inc = db.Column(db.Float)
+    angle = db.Column(db.Float)
+    en_out = db.Column(db.Float)
+    data = db.Column(db.Float)
+    zap = db.Column(db.Integer)
+    outgoing_particle = db.Column(db.String)
+    frame = db.Column(db.String)
+
+
 
 
 class ResonanceTable_Data(Base):
@@ -99,4 +112,3 @@ def create_all():
 
 if __name__ == "__main__":
     create_all()
-

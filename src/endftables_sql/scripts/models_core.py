@@ -76,6 +76,20 @@ endf_angle_data = db.Table(
     db.Column("frame", db.String),
 )
 
+endf_ddx_data = db.Table(
+    "endf_ddx_data",
+    metadata,
+    db.Column("id", db.Integer, primary_key=True, autoincrement=True),
+    db.Column("reaction_id", db.Integer),
+    db.Column("en_inc", db.Float),
+    db.Column("angle", db.Float),
+    db.Column("en_out", db.Float),
+    db.Column("data", db.Float),
+    db.Column("zap", db.Integer),
+    db.Column("outgoing_particle", db.String),
+    db.Column("frame", db.String),
+)
+
 
 # =========================
 # Engine-independent API
